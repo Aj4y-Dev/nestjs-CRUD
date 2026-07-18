@@ -116,3 +116,21 @@ DROP COLUMN name;
 ```
 
 Now every user's name is gone. You didn't type any SQL. TypeORM did.
+
+```
+nest g res cities
+
+✔ What transport layer do you use? REST API
+✔ Would you like to generate CRUD entry points? Yes
+CREATE src/cities/cities.controller.ts (939 bytes)
+CREATE src/cities/cities.controller.spec.ts (596 bytes)
+CREATE src/cities/cities.module.ts (264 bytes)
+CREATE src/cities/cities.service.ts (637 bytes)
+CREATE src/cities/cities.service.spec.ts (478 bytes)
+CREATE src/cities/dto/create-city.dto.ts (31 bytes)
+CREATE src/cities/dto/update-city.dto.ts (173 bytes)
+CREATE src/cities/entities/city.entity.ts (22 bytes)
+UPDATE package.json (2294 bytes)
+UPDATE src/app.module.ts (1380 bytes)
+✔ Packages installed successfully.
+```
