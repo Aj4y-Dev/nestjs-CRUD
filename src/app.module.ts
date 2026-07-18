@@ -3,8 +3,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { join } from 'path';
 import { CitiesModule } from './cities/cities.module';
+import { City } from './cities/entities/city.entity';
 
 @Module({
   imports: [
@@ -22,7 +22,7 @@ import { CitiesModule } from './cities/cities.module';
         ssl: {
           rejectUnauthorized: false, //Helps the PostgreSQL driver establish that SSL connection in environments where certificate verification would otherwise prevent it.
         }, //ssl Required because Neon only accepts secure SSL connections.
-        entities: [join(process.cwd(), 'dist/**/*.entity.js')],
+        entities: [City],
         // do Not use Synchronize: true in real Projects
         synchronize: true,
       }),
