@@ -1,136 +1,281 @@
-### TypeORM is responsible for:
+# NestJS CRUD with PostgreSQL & TypeORM
 
-- Connecting to PostgreSQL
-- Creating SQL queries
-- Mapping database tables to TypeScript classes
-- Saving data
-- Updating data
-- Deleting data
+This repository is a step-by-step demonstration of how to build a full **CRUD (Create, Read, Update, Delete)** API using **NestJS**, **TypeORM**, and **PostgreSQL**.
 
-This is the PostgreSQL driver. TypeORM doesn't know how to talk to PostgreSQL by itself. It uses pg underneath.
+---
 
-```
-pnpm install --save @nestjs/typeorm typeorm pg
-```
+## 🚀 Step-by-Step Guide: How to Create CRUD in NestJS
 
-@nestjs/config is NestJS's official configuration module. It is mainly used to:
+Here is a detailed guide on how this CRUD system was built, and how you can create your own CRUD resource (e.g., `cities` or `users`) from scratch.
 
-Read environment variables from .env
-Access configuration anywhere in your application
-Validate configuration
-Keep secrets (database URLs, JWT secrets, API keys) out of your source code
+### Step 1: Generate the Resource Scaffold
+NestJS CLI provides a powerful generator that creates all the boilerplate files for a REST API. Run the following command in your terminal:
 
-```
-pnpm i --save @nestjs/config
-```
-
-This is the NestJS integration for TypeORM. It allows NestJS to work nicely with TypeORM using dependency injection. Without it, you would have to manually create database connections. ORM (Object Relational Mapper).
-
-```
-TypeOrmModule.forRootAsync({
-  imports: [ConfigModule], //Before TypeORM is created, Nest asks: "Does TypeORM depend on another module?"
-  inject: [ConfigService], //This is Dependency Injection.
-  useFactory: (configService: ConfigService) => ({ //This is the heart of everything. It automatically connect the Typeorm
-    type: 'postgres',
-    host: configService.get('DB_HOST'),
-    port: Number(configService.get('DB_PORT')),
-    username: configService.get('DB_USERNAME'),
-    password: configService.get('DB_PASSWORD'),
-    database: configService.get('DB_NAME'),
-    entities: [join(process.cwd(), 'dist/**/*.entity.js')],//An Entity is simply a TypeScript class that represents a database table. current workin dir inside dist Search all folders recursively, matches every file ending with: .entity.js like user.entity.js
-    synchronize: true, //It's fantastic for development but the problem is that it's dangerous in production because TypeORM is allowed to modify your database automatically. Basically in Development `synchronize: true` in Production `synchronize: false`
-  }),
-});
-```
-
-When your application starts, TypeORM asks: "Hey NestJS, I need my database configuration. Where do I get it?" . NestJS replies: "Don't worry. I'll call a function that returns your configuration." That function is useFactory.
-
-### synchronize: true
-
-Scenario 1 — You add a new column
-You change your entity:
-
-```
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  name: string;
-
-  @Column()
-  email: string;
-}
-```
-
-When you restart the application:
-
-TypeORM automatically runs something similar to:
-
-```
-ALTER TABLE users
-ADD COLUMN email VARCHAR;
-
-Perfect!
-This is why synchronize is amazing during development.
-```
-
-Scenario 2 — You accidentally remove a property
-Yesterday:
-
-```
-@Column()
-name: string;
-```
-
-Today you accidentally delete it.
-
-```
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-}
-```
-
-Now your database still has:
-
-| id  | name |
-| --- | ---- |
-| 1   | Ajay |
-| 2   | Ram  |
-
-TypeORM starts. It compares:
-
-- Entity: id
-- Database: id name
-
-It thinks: "The name column shouldn't exist anymore."
-
-```
-It may execute:
-
-ALTER TABLE users
-DROP COLUMN name;
-```
-
-Now every user's name is gone. You didn't type any SQL. TypeORM did.
-
-```
+```bash
 nest g res cities
-
-✔ What transport layer do you use? REST API
-✔ Would you like to generate CRUD entry points? Yes
-CREATE src/cities/cities.controller.ts (939 bytes)
-CREATE src/cities/cities.controller.spec.ts (596 bytes)
-CREATE src/cities/cities.module.ts (264 bytes)
-CREATE src/cities/cities.service.ts (637 bytes)
-CREATE src/cities/cities.service.spec.ts (478 bytes)
-CREATE src/cities/dto/create-city.dto.ts (31 bytes)
-CREATE src/cities/dto/update-city.dto.ts (173 bytes)
-CREATE src/cities/entities/city.entity.ts (22 bytes)
-UPDATE package.json (2294 bytes)
-UPDATE src/app.module.ts (1380 bytes)
-✔ Packages installed successfully.
 ```
+
+When prompted:
+1. **What transport layer do you use?** Select `REST API`
+2. **Would you like to generate CRUD entry points?** Select `Yes`
+
+This will generate the following structure inside `src/cities`:
+```
+src/cities/
+├── dto/
+│   ├── create-city.dto.ts
+│   └── update-city.dto.ts
+├── entities/
+│   └── city.entity.ts
+├── cities.controller.ts
+├── cities.module.ts
+└── cities.service.ts
+```
+
+---
+
+### Step 2: Define the Database Entity (`city.entity.ts`)
+An **Entity** represents your database table structure. We use TypeORM decorators to define columns and relationships.
+
+File: [city.entity.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/entities/city.entity.ts)
+```typescript
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity({ name: 'Cities' }) // Custom table name in PostgreSQL
+export class City {
+  @PrimaryGeneratedColumn() // Auto-incrementing primary key
+  id!: number;
+
+  @Column({ unique: true }) // Unique constraint for city name
+  name!: string;
+
+  @Column({ type: 'text', nullable: true }) // Nullable text column
+  description!: string;
+
+  @Column({ type: 'boolean', default: true }) // Boolean with default value
+  active!: boolean;
+}
+```
+
+---
+
+### Step 3: Define Data Transfer Objects (DTOs)
+DTOs define the shape of data sent in network requests and allow validation.
+
+1. **Create DTO (`create-city.dto.ts`)**:
+   File: [create-city.dto.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/dto/create-city.dto.ts)
+   ```typescript
+   export class CreateCityDto {
+     name!: string;
+     description!: string;
+     active!: boolean;
+   }
+   ```
+
+2. **Update DTO (`update-city.dto.ts`)**:
+   Inherits all fields from `CreateCityDto` but makes them optional.
+   File: [update-city.dto.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/dto/update-city.dto.ts)
+   ```typescript
+   import { PartialType } from '@nestjs/mapped-types';
+   import { CreateCityDto } from './create-city.dto';
+
+   export class UpdateCityDto extends PartialType(CreateCityDto) {}
+   ```
+
+---
+
+### Step 4: Register the Entity in the Modules
+To use the `City` repository inside our services, we need to register it in both the resource module and the root module.
+
+1. **Feature Module (`cities.module.ts`)**:
+   Import `TypeOrmModule.forFeature` to register the `City` entity.
+   File: [cities.module.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/cities.module.ts)
+   ```typescript
+   import { Module } from '@nestjs/common';
+   import { CitiesService } from './cities.service';
+   import { CitiesController } from './cities.controller';
+   import { TypeOrmModule } from '@nestjs/typeorm';
+   import { City } from './entities/city.entity';
+
+   @Module({
+     imports: [TypeOrmModule.forFeature([City])], // Registering City Entity
+     controllers: [CitiesController],
+     providers: [CitiesService],
+   })
+   export class CitiesModule {}
+   ```
+
+2. **Root Module (`app.module.ts`)**:
+   Register it in your root database options so TypeORM knows it exists.
+   File: [app.module.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/app.module.ts)
+   ```typescript
+   import { Module } from '@nestjs/common';
+   import { TypeOrmModule } from '@nestjs/typeorm';
+   import { CitiesModule } from './cities/cities.module';
+   import { City } from './cities/entities/city.entity';
+
+   @Module({
+     imports: [
+       // ... other configurations (ConfigModule, etc.)
+       TypeOrmModule.forRootAsync({
+         // ... connection details
+         entities: [City],
+         synchronize: true, // Auto-create tables in development
+       }),
+       CitiesModule,
+     ],
+   })
+   export class AppModule {}
+   ```
+
+---
+
+### Step 5: Implement CRUD logic in the Service (`cities.service.ts`)
+The Service contains business logic and interacts directly with PostgreSQL using the TypeORM repository patterns.
+
+File: [cities.service.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/cities.service.ts)
+```typescript
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { CreateCityDto } from './dto/create-city.dto';
+import { UpdateCityDto } from './dto/update-city.dto';
+import { City } from './entities/city.entity';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+
+@Injectable()
+export class CitiesService {
+  constructor(
+    @InjectRepository(City)
+    private readonly citiesRepository: Repository<City>, // Injecting TypeORM Repository
+  ) {}
+
+  // CREATE
+  async create(createCityDto: CreateCityDto) {
+    const city = this.citiesRepository.create(createCityDto);
+    return await this.citiesRepository.save(city);
+  }
+
+  // READ (ALL)
+  async findAll() {
+    return await this.citiesRepository.find();
+  }
+
+  // READ (ONE)
+  async findOne(id: number) {
+    const city = await this.citiesRepository.findOne({ where: { id } });
+    if (!city) {
+      throw new NotFoundException(`City with ID ${id} not found`);
+    }
+    return city;
+  }
+
+  // UPDATE
+  async update(id: number, updateCityDto: UpdateCityDto) {
+    const city = await this.findOne(id); // Reuses findOne validation logic
+    Object.assign(city, updateCityDto); // Merges updates onto the retrieved entity
+    return await this.citiesRepository.save(city);
+  }
+
+  // DELETE
+  async remove(id: number) {
+    const city = await this.findOne(id);
+    return await this.citiesRepository.remove(city);
+  }
+}
+```
+
+---
+
+### Step 6: Expose Endpoints in the Controller (`cities.controller.ts`)
+The Controller handles HTTP requests and maps them to service functions.
+
+File: [cities.controller.ts](file:///c:/Users/Lenovo/OneDrive/Desktop/Projects/Practise/pg-crud/src/cities/cities.controller.ts)
+```typescript
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { CitiesService } from './cities.service';
+import { CreateCityDto } from './dto/create-city.dto';
+import { UpdateCityDto } from './dto/update-city.dto';
+
+@Controller('cities') // Base Route: http://localhost:3000/cities
+export class CitiesController {
+  constructor(private readonly citiesService: CitiesService) {}
+
+  @Post()
+  create(@Body() createCityDto: CreateCityDto) {
+    return this.citiesService.create(createCityDto);
+  }
+
+  @Get()
+  findAll() {
+    return this.citiesService.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.citiesService.findOne(+id); // '+' converts string parameter to number
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateCityDto: UpdateCityDto) {
+    return this.citiesService.update(+id, updateCityDto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.citiesService.remove(+id);
+  }
+}
+```
+
+---
+
+## 🛠️ Installation & Setup
+
+### 1. Install Dependencies
+Make sure you have the key packages installed:
+```bash
+pnpm install --save @nestjs/typeorm typeorm pg @nestjs/config
+```
+* `@nestjs/typeorm`: TypeORM integration for NestJS.
+* `typeorm`: Object Relational Mapper for TypeScript/JavaScript.
+* `pg`: PostgreSQL database client driver.
+* `@nestjs/config`: Config environment configuration utility.
+
+### 2. Configure `.env` File
+Create a `.env` file in the root directory:
+```env
+DB_HOST=your-neon-database-host.neon.tech
+DB_PORT=5432
+DB_USERNAME=your-username
+DB_PASSWORD=your-password
+DB_NAME=your-database-name
+```
+
+---
+
+## ⚠️ Important Configuration Details
+
+### Database Sync (`synchronize: true`)
+In `app.module.ts`, we set `synchronize: true`.
+* **In Development:** Extremely helpful because TypeORM will automatically alter tables and schemas to match your entity classes.
+* **In Production:** **Danger!** Turn this off (`false`) to avoid accidental data loss. If you remove an entity field, TypeORM will drop the corresponding column, resulting in complete loss of data for that column.
+
+### SSL Connection for Neon Database
+Since Neon.tech PostgreSQL requires secure connections, SSL is configured in `app.module.ts`:
+```typescript
+ssl: {
+  rejectUnauthorized: false; // Establish secure connection bypassing local chain validation
+}
+```
+
+---
+
+## 📡 API Endpoints Reference
+
+| Method | Endpoint | Description | Request Body |
+| :--- | :--- | :--- | :--- |
+| **POST** | `/cities` | Create a new city | `{ "name": "Berlin", "description": "Capital of Germany", "active": true }` |
+| **GET** | `/cities` | Get all cities | *None* |
+| **GET** | `/cities/:id` | Get city details by ID | *None* |
+| **PATCH** | `/cities/:id` | Update an existing city | `{ "description": "Updated city description" }` |
+| **DELETE** | `/cities/:id` | Remove a city by ID | *None* |
